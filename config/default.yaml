@@ -1,0 +1,29 @@
+app_env: development
+log_level: INFO
+
+storage_backend: local
+storage_local_path: /data/storage
+s3_bucket: video-dubbing
+s3_region: us-east-1
+
+max_upload_size_mb: 500
+max_video_duration_seconds: 600
+allowed_video_formats: [mp4, mov, avi, mkv]
+max_concurrent_uploads: 10
+max_concurrent_processing_jobs: 5
+processing_timeout_seconds: 1800
+retry_count: 3
+queue_max_length: 1000
+
+stt_provider: stub
+translation_provider: stub
+tts_provider: stub
+diarization_provider: stub
+
+provider_timeout_seconds: 60
+provider_retry_count: 2
+
+api_key_auth_enabled: false
+rate_limit_per_minute: 60
+
+otel_enabled: true

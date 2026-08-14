@@ -1,0 +1,23 @@
+app_env: production
+log_level: WARNING
+
+storage_backend: s3
+s3_bucket: video-dubbing-prod
+
+max_upload_size_mb: 1000
+max_concurrent_uploads: 50
+max_concurrent_processing_jobs: 50
+processing_timeout_seconds: 3600
+retry_count: 5
+queue_max_length: 5000
+
+stt_provider: faster_whisper
+translation_provider: claude
+tts_provider: elevenlabs
+diarization_provider: pyannote
+
+api_key_auth_enabled: true
+rate_limit_per_minute: 120
+
+otel_enabled: true
+otel_exporter_endpoint: "http://jaeger-collector:4318"

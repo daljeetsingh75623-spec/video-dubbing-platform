@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+.venv/
+/data/
+*.db
+
+# test media and pipeline output artifacts
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.srt
