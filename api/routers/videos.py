@@ -70,7 +70,7 @@ async def upload_video(
     await db.commit()
 
     from workers.tasks import run_pipeline
-    run_pipeline.delay(str(job_id))
+    run_pipeline.delay(str(job_id))  # type: ignore[attr-defined]
 
     return JobCreateResponse(job_id=job_id, status=job.status, target_language=target_language)
 
@@ -153,7 +153,7 @@ async def retry_job(job_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     await db.commit()
 
     from workers.tasks import run_pipeline
-    run_pipeline.delay(str(job_id))
+    run_pipeline.delay(str(job_id))  # type: ignore[attr-defined]
 
     return JobStatusResponse(
         job_id=job.id, status=job.status, source_language=job.source_language,

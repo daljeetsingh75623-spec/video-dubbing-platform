@@ -14,23 +14,34 @@ from typing import Any
 
 import yaml
 from pydantic import Field
-from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
+from pydantic.fields import FieldInfo
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
 
 
-class YamlConfigSource:
+class YamlConfigSource(PydanticBaseSettingsSource):
     """Loads a YAML file into a flat dict pydantic-settings can consume."""
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, settings_cls: type[BaseSettings]):
+        super().__init__(settings_cls)
         self.path = path
+        self._data = self._load()
 
-    def __call__(self) -> dict[str, Any]:
+    def _load(self) -> dict[str, Any]:
         if not self.path.exists():
             return {}
         with open(self.path) as f:
             data = yaml.safe_load(f)
-        if not isinstance(data, dict):
-            return {}
-        return data
+        return data if isinstance(data, dict) else {}
+
+    def __call__(self) -> dict[str, Any]:
+        return self._data
+
+    def get_field_value(self, field: FieldInfo, field_name: str) -> tuple[Any, str, bool]:
+        return self._data.get(field_name), field_name, False
 
 
 class Settings(BaseSettings):
@@ -77,6 +88,7 @@ class Settings(BaseSettings):
     translation_provider: str = Field(default="stub")
     tts_provider: str = Field(default="stub")
     diarization_provider: str = Field(default="stub")
+    huggingface_token: str | None = Field(default=None)
 
     # --- Provider credentials ---
     openai_api_key: str | None = Field(default=None)
@@ -110,12 +122,12 @@ class Settings(BaseSettings):
         file_secret_settings: PydanticBaseSettingsSource,
     ):
         config_file = Path(os.environ.get("CONFIG_FILE", "config/default.yaml"))
-        yaml_source = YamlConfigSource(config_file)
+        yaml_source = YamlConfigSource(config_file, settings_cls)
         return (
             init_settings,
             env_settings,
             dotenv_settings,
-            lambda: yaml_source(),
+            yaml_source,
             file_secret_settings,
         )
 
