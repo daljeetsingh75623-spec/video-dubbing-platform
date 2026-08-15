@@ -195,15 +195,17 @@ changes needed.
 |---|---|
 | Structured logging | `structlog` everywhere (`api/main.py`, `workers/tasks.py`); key-value events (`request_start/end`, `stale_job_recovered`, `pipeline_failed`). Pluggable output → stdout (dev) or JSON/ELK collector |
 | Error tracking | All failures logged with structured context (`job_id`, `stage`, `error`); unhandled exceptions funneled through a single handler in `api/main.py`. Swap in Sentry by attaching to that handler |
-| Request tracing | OpenTelemetry init (`core/telemetry.py`) + FastAPI instrumentor; traces export to any OTLP collector (`OTEL_*` settings). Opt-out via `OTEL_ENABLED=false` |
+| Request tracing | OpenTelemetry init (`core/telemetry.py`) + FastAPI instrumentor; traces export to any OTLP collector (`OTEL_*` settings). The compose stack bundles a `jaeger` all-in-one and the API exports to it by service name (`http://jaeger:4317`); point `OTEL_EXPORTER_ENDPOINT` elsewhere to swap collectors, or set `OTEL_ENABLED=false` to opt out |
 | Metrics | Prometheus-format `GET /metrics` (self-contained, no deps): job counters (created/completed/failed), gauges (`uploads_active`, `processing_active`, `queue_depth`), labeled HTTP counters (method × route-template × status), 429-rejection counters by reason. `queue_depth` degrades to `-1` if the DB is unreachable so scrapes survive outages. Point Prometheus at `/metrics` and dashboards at that |
 
 ## 9. Deployment Strategy
 
 Docker Compose for this submission: `api` (uvicorn), `worker` (Celery),
 `beat` (scheduled stale-job recovery), a one-shot `migrate` service (Alembic),
-and infrastructure containers `redis`, `postgres`, `minio` — each with
-healthchecks and explicit startup ordering (`depends_on: condition`). A single
+and infrastructure containers `redis`, `postgres`, `minio`, plus a `jaeger`
+all-in-one trace backend (OTLP gRPC `:4317`, UI `:16686`) that the API exports
+to via the compose service name — each with healthchecks and explicit startup
+ordering (`depends_on: condition`). A single
 `Dockerfile` (python-slim + ffmpeg + libmagic, CPU-only torch) builds all
 app services; worker capacity is tuned by config, not flags. Production
 deployment would move to:

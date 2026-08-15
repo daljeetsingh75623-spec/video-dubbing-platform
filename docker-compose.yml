@@ -9,6 +9,9 @@ services:
     env_file: .env
     environment:
       CONFIG_FILE: config/default.yaml
+      # Prefer the compose-network Jaeger over whatever .env sets; OTLP
+      # export is async, so Jaeger being briefly down never takes the API down.
+      OTEL_EXPORTER_ENDPOINT: http://jaeger:4317
     volumes:
       - .:/app
       - dubbing-data:/data/storage
@@ -21,6 +24,8 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      jaeger:
+        condition: service_started
 
   worker:
     build:
@@ -119,6 +124,17 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+
+  # Trace backend: OTLP gRPC collector + query UI. The API exports to it via
+  # the service name (see api.environment.OTEL_EXPORTER_ENDPOINT).
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
 
 volumes:
   postgres-data:

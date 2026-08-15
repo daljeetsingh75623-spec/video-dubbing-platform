@@ -184,8 +184,12 @@ docker compose logs --tail=100 api           # last N lines
 events print to the terminal, e.g. `request_end`, `tts_segment`,
 `stale_job_recovered`, `pipeline_failed`.
 
-**Traces** — with `OTEL_ENABLED=true` and no `OTEL_EXPORTER_ENDPOINT`, spans
-are printed to the console instead of exported.
+**Docker Compose** — the stack bundles a Jaeger all-in-one. Trace UI:
+[http://localhost:16686](http://localhost:16686) (service `video-dubbing-api`).
+The API auto-exports to it over the compose network; no config needed.
+
+**Local dev** — with `OTEL_ENABLED=true` and no `OTEL_EXPORTER_ENDPOINT`,
+spans are printed to the console instead of exported.
 
 ## Known Limitations
 
