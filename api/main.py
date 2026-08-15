@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from fastapi.staticfiles import StaticFiles
 import structlog
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -24,7 +24,7 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore
 
 app.include_router(videos.router)
-
+app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):

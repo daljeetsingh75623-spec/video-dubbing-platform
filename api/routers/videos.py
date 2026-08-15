@@ -6,8 +6,13 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.background import BackgroundTask
+from api.auth import require_api_key
+
+router = APIRouter(prefix="/videos", tags=["videos"], dependencies=[Depends(require_api_key)])
 
 from api.schemas.jobs import (
     JobCreateResponse,
@@ -75,6 +80,23 @@ async def upload_video(
     return JobCreateResponse(job_id=job_id, status=job.status, target_language=target_language)
 
 
+@router.get("")
+async def list_jobs(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Job).order_by(Job.created_at.desc()).limit(10))
+    jobs = result.scalars().all()
+    return [
+        {
+            "job_id": str(j.id),
+            "status": j.status,
+            "source_language": j.source_language,
+            "target_language": j.target_language,
+            "error_message": j.error_message,
+            "created_at": j.created_at,
+        }
+        for j in jobs
+    ]
+
+
 @router.get("/{job_id}/status", response_model=JobStatusResponse)
 async def get_status(job_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     job = await db.get(Job, job_id)
@@ -116,8 +138,16 @@ async def download_video(job_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     if job.status != "completed" or not job.output_video_key:
         raise HTTPException(409, f"Job is not completed yet (status: {job.status})")
     storage = get_storage_backend()
-    url = await storage.get_url(job.output_video_key)
-    return {"url": url}
+    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
+        tmp_path = tmp.name
+    await storage.download(job.output_video_key, tmp_path)
+    return FileResponse(
+        tmp_path,
+        media_type="video/mp4",
+        filename="dubbed.mp4",
+        content_disposition_type="inline",
+        background=BackgroundTask(os.unlink, tmp_path),
+    )
 
 
 @router.get("/{job_id}/subtitles")
@@ -128,8 +158,15 @@ async def download_subtitles(job_id: uuid.UUID, db: AsyncSession = Depends(get_d
     if not job.output_srt_key:
         raise HTTPException(409, "Subtitles not available yet")
     storage = get_storage_backend()
-    url = await storage.get_url(job.output_srt_key)
-    return {"url": url}
+    with tempfile.NamedTemporaryFile(suffix=".srt", delete=False) as tmp:
+        tmp_path = tmp.name
+    await storage.download(job.output_srt_key, tmp_path)
+    return FileResponse(
+        tmp_path,
+        media_type="application/x-subrip",
+        filename="subtitles.srt",
+        background=BackgroundTask(os.unlink, tmp_path),
+    )
 
 
 @router.post("/{job_id}/retry", response_model=JobStatusResponse)

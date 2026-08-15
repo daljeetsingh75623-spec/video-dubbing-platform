@@ -34,6 +34,19 @@ async def get_video_duration_ms(video_path: str) -> int:
     return int(float(stdout.decode().strip()) * 1000)
 
 
+async def _get_audio_duration_ms(audio_path: str) -> int:
+    """ffprobe a single audio chunk's duration."""
+    proc = await asyncio.create_subprocess_exec(
+        "ffprobe", "-v", "error", "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1", audio_path,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        raise RuntimeError(f"ffprobe failed: {stderr.decode()}")
+    return int(float(stdout.decode().strip()) * 1000)
+
+
 async def build_composite_audio_track(
     segments: list[SynthesizedSegment],
     local_audio_paths: dict[str, str],   # audio_path key -> local file path
@@ -43,6 +56,10 @@ async def build_composite_audio_track(
     """
     Builds one WAV file spanning total_duration_ms, with each segment's
     audio placed at its start_ms offset via ffmpeg's `adelay` + `amix`.
+
+    Each TTS chunk is time-stretched (rubberband, pitch-preserving) to fit
+    its segment's window exactly, so audio never bleeds into the next
+    segment and voices don't overlap.
     """
     if not segments:
         # No dubbed audio at all — emit silence for the full duration so
@@ -61,11 +78,19 @@ async def build_composite_audio_track(
     for i, seg in enumerate(segments):
         local_path = local_audio_paths[seg.audio_path]
         inputs += ["-i", local_path]
+        # Stretch/shrink the chunk to exactly fill its window so it never
+        # overlaps the next segment (rubberband keeps pitch constant).
+        window_ms = max(seg.end_ms - seg.start_ms, 1)
+        audio_ms = await _get_audio_duration_ms(local_path)
+        tempo = min(max(audio_ms / window_ms, 0.25), 4.0)
+        stretch = f"rubberband=tempo={tempo:.3f}," if abs(tempo - 1.0) > 0.02 else ""
         # adelay pads the start of this clip with silence up to start_ms
-        filter_parts.append(f"[{i}:a]adelay={seg.start_ms}|{seg.start_ms}[a{i}]")
+        filter_parts.append(f"[{i}:a]{stretch}adelay={seg.start_ms}|{seg.start_ms}[a{i}]")
 
     mix_inputs = "".join(f"[a{i}]" for i in range(len(segments)))
-    filter_complex = ";".join(filter_parts) + f";{mix_inputs}amix=inputs={len(segments)}:duration=longest[aout]"
+    filter_complex = ";".join(filter_parts) + (
+        f";{mix_inputs}amix=inputs={len(segments)}:duration=longest:normalize=0,apad[aout]"
+    )
 
     cmd = [
         "ffmpeg", "-y",

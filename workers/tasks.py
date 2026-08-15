@@ -280,7 +280,7 @@ def sync_av_stage(self, job_id: str) -> str:
         # Pull the synthesized-segment list written by synthesize_stage.
         event = (
             db.query(JobEvent)
-            .filter(JobEvent.job_id == job.id, JobEvent.stage == "synthesizing")
+            .filter(JobEvent.job_id == job.id, JobEvent.stage == "synthesized")
             .order_by(JobEvent.created_at.desc())
             .first()
         )

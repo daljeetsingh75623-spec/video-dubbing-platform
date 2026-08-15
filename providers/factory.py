@@ -42,6 +42,7 @@ _TRANSLATION_REGISTRY: dict[str, Callable[[], type[TranslationProvider]]] = {
 _TTS_REGISTRY: dict[str, Callable[[], type[TTSProvider]]] = {
     "stub": _lazy("providers.tts.stub", "StubTTSProvider"),
     "edge_tts": _lazy("providers.tts.edge_tts_provider", "EdgeTTSProvider"),
+    "gtts": _lazy("providers.tts.gtts_provider", "GTTSProvider"),
 }
 
 _DIARIZATION_REGISTRY: dict[str, Callable[[], type[DiarizationProvider]]] = {

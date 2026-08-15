@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Video Dubbing</title>
+<style>
+  :root {
+    --bg: #0b1020;
+    --card: #141a2e;
+    --card-2: #1a2238;
+    --border: #28304a;
+    --text: #e7ebf6;
+    --muted: #9aa4c2;
+    --accent: #6366f1;
+    --accent-2: #8b5cf6;
+    --green: #34d399;
+    --red: #f87171;
+    --amber: #fbbf24;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: radial-gradient(1200px 600px at 80% -10%, #1e1b4b 0%, transparent 60%),
+                radial-gradient(900px 500px at -10% 110%, #312e81 0%, transparent 55%), var(--bg);
+    color: var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 32px 20px 64px; }
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+  .logo {
+    width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    font-weight: 800; font-size: 18px; color: #fff;
+  }
+  h1 { font-size: 1.35rem; letter-spacing: -0.02em; }
+  header p { color: var(--muted); font-size: 0.85rem; }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; margin-bottom: 20px; }
+  .card h2 { font-size: 1rem; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+  .card h2 .n { width: 22px; height: 22px; border-radius: 6px; background: var(--card-2); display: grid; place-items: center; font-size: 0.75rem; color: var(--accent); }
+
+  .drop {
+    border: 2px dashed var(--border); border-radius: 12px; padding: 28px; text-align: center;
+    cursor: pointer; transition: all .15s ease; background: var(--card-2);
+  }
+  .drop:hover, .drop.dragover { border-color: var(--accent); background: #1d2542; }
+  .drop .big { font-size: 2rem; margin-bottom: 6px; }
+  .drop p { color: var(--muted); font-size: 0.9rem; }
+  .drop p b { color: var(--text); }
+  .drop.has-file { border-color: var(--green); border-style: solid; }
+
+  .row { display: grid; grid-template-columns: 1fr 220px; gap: 14px; margin-top: 16px; }
+  select {
+    width: 100%; background: var(--card-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px; font-size: 0.95rem; outline: none;
+  }
+  select:focus { border-color: var(--accent); }
+  .btn {
+    width: 100%; border: none; border-radius: 10px; padding: 12px; font-size: 0.95rem; font-weight: 600;
+    cursor: pointer; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff;
+    transition: opacity .15s ease, transform .05s ease;
+  }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn:active:not(:disabled) { transform: scale(0.98); }
+  .btn.secondary { background: var(--card-2); color: var(--text); border: 1px solid var(--border); }
+
+  /* Progress steps */
+  .steps { display: flex; align-items: center; margin: 18px 0 4px; }
+  .step { display: flex; flex-direction: column; align-items: center; flex: 1; gap: 6px; }
+  .step .dot { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--card-2); border: 1px solid var(--border); font-size: 0.7rem; color: var(--muted); transition: all .2s ease; }
+  .step .lbl { font-size: 0.68rem; color: var(--muted); text-align: center; }
+  .step.done .dot { background: var(--green); border-color: var(--green); color: #062; }
+  .step.active .dot { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 0 0 4px rgba(99,102,241,.25); animation: pulse 1.2s infinite; }
+  .step.active .lbl { color: var(--text); }
+  .connector { height: 2px; flex: 1; background: var(--border); margin: 0 4px 22px; }
+  .connector.done { background: var(--green); }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 3px rgba(99,102,241,.35); } 50% { box-shadow: 0 0 0 6px rgba(99,102,241,.15); } }
+
+  .meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  .chip { font-size: 0.75rem; padding: 4px 10px; border-radius: 999px; background: var(--card-2); color: var(--muted); border: 1px solid var(--border); }
+  .chip.lang { color: var(--accent); border-color: var(--accent); }
+
+  .banner { padding: 12px 14px; border-radius: 10px; margin-top: 14px; font-size: 0.9rem; display: none; }
+  .banner.err { display: block; background: rgba(248,113,113,.12); border: 1px solid rgba(248,113,113,.4); color: var(--red); }
+  .banner.done { display: block; background: rgba(52,211,153,.12); border: 1px solid rgba(52,211,153,.4); color: var(--green); }
+
+  video { width: 100%; border-radius: 10px; background: #000; border: 1px solid var(--border); }
+
+  .links { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .links a {
+    display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 10px;
+    background: var(--card-2); border: 1px solid var(--border); color: var(--text);
+    text-decoration: none; font-size: 0.85rem; font-weight: 600; transition: border-color .15s ease;
+  }
+  .links a:hover { border-color: var(--accent); }
+  .links a.primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); border: none; color: #fff; }
+
+  .tbl { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .tbl th { text-align: left; color: var(--muted); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  .tbl td { padding: 10px; border-bottom: 1px solid var(--border); }
+  .tbl tr.click { cursor: pointer; }
+  .tbl tr.click:hover td { background: var(--card-2); }
+  .tbl .id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.75rem; color: var(--muted); }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 0.7rem; font-weight: 700; }
+  .b-queued, .b-diarizing, .b-transcribing, .b-translating, .b-synthesizing, .b-syncing, .b-packaging { background: rgba(251,191,36,.15); color: var(--amber); }
+  .b-completed { background: rgba(52,211,153,.15); color: var(--green); }
+  .b-failed, .b-cancelled { background: rgba(248,113,113,.15); color: var(--red); }
+
+  .transcript { margin-top: 14px; }
+  .transcript .line { padding: 10px 12px; border-radius: 8px; background: var(--card-2); margin-bottom: 8px; font-size: 0.85rem; }
+  .transcript .t { color: var(--muted); }
+  .transcript .s { color: var(--accent); font-size: 0.7rem; }
+  .hidden { display: none !important; }
+  .spinner { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; display: inline-block; animation: spin .7s linear infinite; vertical-align: -3px; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #drop-zone input { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="logo">VD</div>
+    <div>
+      <h1>AI Video Dubbing</h1>
+      <p>Upload a video and get it back dubbed in another language</p>
+    </div>
+  </header>
+
+  <div class="card">
+    <h2><span class="n">1</span> Upload video</h2>
+    <div id="drop-zone" class="drop">
+      <div class="big">⬆</div>
+      <p><b>Drag &amp; drop</b> your video here, or <b>browse</b></p>
+      <p style="font-size:0.8rem; margin-top:4px;">mp4 · mov · avi · mkv</p>
+      <input type="file" id="file" accept=".mp4,.mov,.avi,.mkv">
+    </div>
+    <div class="row">
+      <select id="lang">
+        <option value="es">Spanish</option>
+        <option value="fr">French</option>
+        <option value="hi">Hindi</option>
+        <option value="de">German</option>
+        <option value="ja">Japanese</option>
+        <option value="pt">Portuguese</option>
+      </select>
+      <button class="btn" id="uploadBtn">Start Dubbing</button>
+    </div>
+  </div>
+
+  <div class="card hidden" id="statusCard">
+    <h2><span class="n">2</span> Processing <span id="badge" class="badge b-queued">queued</span></h2>
+    <div class="steps" id="steps"></div>
+    <div class="meta" id="meta"></div>
+    <div class="banner err" id="errBanner"></div>
+    <div class="banner done" id="doneBanner">Dubbing complete!</div>
+  </div>
+
+  <div class="card hidden" id="resultCard">
+    <h2><span class="n">3</span> Result</h2>
+    <video id="player" controls playsinline></video>
+    <div class="links">
+      <a class="primary" id="dlVideo" download>Download dubbed video</a>
+      <a id="dlSrt" download>Subtitles (.srt)</a>
+      <a id="dlTxt" target="_blank">Transcript (text)</a>
+    </div>
+    <div class="transcript" id="transcript"></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="n">4</span> Recent jobs</h2>
+    <table class="tbl"><thead><tr><th>Job</th><th>Status</th><th>Lang</th><th>Created</th></tr></thead>
+    <tbody id="jobsBody"></tbody></table>
+    <p id="noJobs" class="hidden" style="color:var(--muted);font-size:0.85rem;padding:10px;">No jobs yet.</p>
+  </div>
+
+</div>
+
+<script>
+const API_BASE = "";
+const ORDER = ["queued","diarizing","diarized","transcribing","transcribed","translating","translated","synthesizing","synthesized","syncing","packaging","completed"];
+const STEPS = [
+  { key: "diarizing", done: "diarized", label: "Speakers" },
+  { key: "transcribing", done: "transcribed", label: "Transcribe" },
+  { key: "translating", done: "translated", label: "Translate" },
+  { key: "synthesizing", done: "synthesized", label: "Voice" },
+  { key: "syncing", done: "syncing", label: "Sync" },
+  { key: "packaging", done: "packaging", label: "Package" },
+];
+const LANG_NAMES = { es: "Spanish", fr: "French", hi: "Hindi", de: "German", ja: "Japanese", pt: "Portuguese", en: "English" };
+
+let currentJobId = null;
+let pollTimer = null;
+
+const $ = (id) => document.getElementById(id);
+const zone = $("drop-zone"), fileInput = $("file");
+
+zone.addEventListener("click", () => fileInput.click());
+zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.classList.add("dragover"); });
+zone.addEventListener("dragleave", () => zone.classList.remove("dragover"));
+zone.addEventListener("drop", (e) => {
+  e.preventDefault(); zone.classList.remove("dragover");
+  if (e.dataTransfer.files.length) fileInput.files = e.dataTransfer.files;
+  updateDrop();
+});
+fileInput.addEventListener("change", updateDrop);
+
+function updateDrop() {
+  const f = fileInput.files[0];
+  zone.classList.toggle("has-file", !!f);
+  zone.querySelector("p").innerHTML = f
+    ? `<b>${escapeHtml(f.name)}</b> (${(f.size / 1048576).toFixed(1)} MB)`
+    : `<b>Drag &amp; drop</b> your video here, or <b>browse</b>`;
+}
+
+$("uploadBtn").addEventListener("click", async () => {
+  const file = fileInput.files[0];
+  if (!file) { alert("Pick a video file first."); return; }
+  const btn = $("uploadBtn");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Uploading...';
+  showStatus("queued", null);
+  $("resultCard").classList.add("hidden");
+
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("target_language", $("lang").value);
+
+  try {
+    const resp = await fetch(`${API_BASE}/videos`, { method: "POST", body: formData });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+      throw new Error(err.detail || "Upload failed");
+    }
+    const job = await resp.json();
+    startPoll(job.job_id);
+  } catch (e) {
+    $("errBanner").textContent = "Upload failed: " + e.message;
+    btn.disabled = false;
+    btn.textContent = "Start Dubbing";
+  }
+});
+
+function startPoll(jobId) {
+  currentJobId = jobId;
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(() => poll(jobId), 2500);
+  poll(jobId);
+}
+
+async function poll(jobId) {
+  try {
+    const resp = await fetch(`${API_BASE}/videos/${jobId}/status`);
+    const job = await resp.json();
+    showStatus(job.status, job);
+    if (job.status === "completed") {
+      clearInterval(pollTimer);
+      $("uploadBtn").disabled = false;
+      $("uploadBtn").textContent = "Start Dubbing";
+      showResult(jobId);
+      loadJobs();
+    } else if (job.status === "failed" || job.status === "cancelled") {
+      clearInterval(pollTimer);
+      $("uploadBtn").disabled = false;
+      $("uploadBtn").textContent = "Start Dubbing";
+    }
+  } catch (e) {
+    // transient; keep polling
+  }
+}
+
+function showStatus(status, job) {
+  $("statusCard").classList.remove("hidden");
+  const badge = $("badge");
+  badge.textContent = status;
+  badge.className = "badge b-" + status;
+  $("errBanner").style.display = status === "failed" ? "block" : "none";
+  $("errBanner").textContent = job && job.error_message ? "Error: " + job.error_message : "Job failed";
+  $("doneBanner").style.display = status === "completed" ? "block" : "none";
+  if (job) {
+    $("meta").innerHTML =
+      `<span class="chip lang">${LANG_NAMES[job.target_language] || job.target_language}</span>` +
+      (job.source_language ? `<span class="chip">from ${LANG_NAMES[job.source_language] || job.source_language}</span>` : "") +
+      `<span class="chip">${job.job_id}</span>`;
+  }
+  const i = ORDER.indexOf(status);
+  $("steps").innerHTML = STEPS.map((s, si) => {
+    let cls = "todo", c = "";
+    if (status === "completed") cls = "done";
+    else if (i >= ORDER.indexOf(s.done)) cls = "done";
+    else if (i === ORDER.indexOf(s.key)) { cls = "active"; c = spinner(); }
+    const conn = si < STEPS.length - 1 ? `<div class="connector ${cls === "done" ? "done" : ""}"></div>` : "";
+    return `<div class="step ${cls}"><div class="dot">${cls === "done" ? "✓" : c || si + 1}</div><div class="lbl">${s.label}</div></div>${conn}`;
+  }).join("");
+}
+
+function spinner() { return '<span class="spinner"></span>'; }
+
+async function showResult(jobId) {
+  $("resultCard").classList.remove("hidden");
+  const player = $("player");
+  player.src = `${API_BASE}/videos/${jobId}/download`;
+  $("dlVideo").href = `${API_BASE}/videos/${jobId}/download`;
+  $("dlSrt").href = `${API_BASE}/videos/${jobId}/subtitles`;
+  $("dlTxt").href = `${API_BASE}/videos/${jobId}/transcript`;
+  try {
+    const resp = await fetch(`${API_BASE}/videos/${jobId}/transcript`);
+    const data = await resp.json();
+    $("transcript").innerHTML = data.segments.map((s) => `
+      <div class="line">
+        <div class="s">${fmt(s.start_ms)} → ${fmt(s.end_ms)}${s.speaker_label ? " · " + s.speaker_label : ""}</div>
+        <div>${escapeHtml(s.source_text)}</div>
+        <div class="t">${escapeHtml(s.translated_text || "")}</div>
+      </div>`).join("");
+  } catch (e) {
+    $("transcript").innerHTML = '<div style="color:var(--muted);font-size:0.85rem;">Transcript unavailable.</div>';
+  }
+}
+
+function fmt(ms) {
+  const s = Math.floor(ms / 1000), m = Math.floor(s / 60);
+  return `${String(m).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+}
+
+async function loadJobs() {
+  try {
+    const resp = await fetch(`${API_BASE}/videos`);
+    const jobs = await resp.json();
+    $("noJobs").classList.toggle("hidden", jobs.length > 0);
+    $("jobsBody").innerHTML = jobs.map((j) => `
+      <tr class="click" onclick="selectJob('${j.job_id}')">
+        <td class="id">${j.job_id.slice(0, 8)}…</td>
+        <td><span class="badge b-${j.status}">${j.status}</span></td>
+        <td>${LANG_NAMES[j.target_language] || j.target_language || "—"}</td>
+        <td style="color:var(--muted)">${new Date(j.created_at).toLocaleString()}</td>
+      </tr>`).join("");
+  } catch (e) { /* ignore */ }
+}
+
+async function selectJob(jobId) {
+  const resp = await fetch(`${API_BASE}/videos/${jobId}/status`);
+  const job = await resp.json();
+  showStatus(job.status, job);
+  if (job.status === "completed") showResult(jobId);
+  window.scrollTo({ top: $("statusCard").offsetTop - 16, behavior: "smooth" });
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+loadJobs();
+</script>
+</body>
+</html>
