@@ -167,6 +167,25 @@ docker/              Dockerfile
 - `core/telemetry.py` initializes OpenTelemetry: FastAPI request spans are
   exported to the OTLP endpoint in `OTEL_EXPORTER_ENDPOINT`, or to the console
   when unset. Point it at a Jaeger/OTel Collector / Grafana Tempo for tracing.
+- `GET /metrics` exposes Prometheus-format job counters, queue depth, upload /
+  processing gauges, and HTTP counters.
+
+## Logs
+
+**Docker Compose** — follow one or all services:
+
+```bash
+docker compose logs -f                       # all services
+docker compose logs -f api                   # or: worker, beat, redis, postgres, minio
+docker compose logs --tail=100 api           # last N lines
+```
+
+**Local dev** — run uvicorn / celery in the foreground; structured `structlog`
+events print to the terminal, e.g. `request_end`, `tts_segment`,
+`stale_job_recovered`, `pipeline_failed`.
+
+**Traces** — with `OTEL_ENABLED=true` and no `OTEL_EXPORTER_ENDPOINT`, spans
+are printed to the console instead of exported.
 
 ## Known Limitations
 

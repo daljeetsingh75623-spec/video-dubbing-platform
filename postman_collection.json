@@ -1,0 +1,231 @@
+{
+  "info": {
+    "_postman_id": "7c6e0d3f-9a4b-4c2e-8f1a-2b5d9e6c7a11",
+    "name": "AI Video Dubbing Platform",
+    "description": "REST API for the AI Video Dubbing Platform.\n\nBase URL defaults to http://localhost:8000 (docker compose / local uvicorn).\n\nOptional auth: if API_KEY_AUTH_ENABLED=true in your config, set the collection variable `apiKey`; the X-API-Key header is applied to every request.\n\nWorkflow:\n1. Run **Upload video** — the returned job_id is stored automatically in the `jobId` collection variable.\n2. Poll **Get status** until status = \"completed\".\n3. Use **Get transcript / Download video / Download subtitles**.\n4. Retry or cancel a job if needed.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "header": [
+    {
+      "key": "X-API-Key",
+      "value": "{{apiKey}}",
+      "type": "text"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
+        },
+        "description": "Liveness probe. Returns {\"status\": \"ok\", \"env\": \"...\"}."
+      }
+    },
+    {
+      "name": "Metrics",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/metrics",
+          "host": ["{{baseUrl}}"],
+          "path": ["metrics"]
+        },
+        "description": "Prometheus-format scrape endpoint (job counters, queue depth, HTTP counters)."
+      }
+    },
+    {
+      "name": "Upload video",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const json = pm.response.json();",
+              "if (json.job_id) { pm.collectionVariables.set('jobId', json.job_id); console.log('jobId -> ' + json.job_id); }",
+              "",
+              "pm.test('Job created (201)', () => pm.expect(pm.response.code).to.equal(201));",
+              "pm.test('Response has job_id', () => pm.expect(json).to.have.property('job_id'));",
+              "pm.test('Job starts queued', () => pm.expect(json.status).to.equal('queued'));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "/path/to/sample.mp4",
+              "description": "Video file. Allowed: mp4, mov, avi, mkv (config-driven)."
+            },
+            {
+              "key": "target_language",
+              "value": "es",
+              "type": "text",
+              "description": "ISO 639-1/2 target language code, e.g. es, fr, zh-CN."
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/videos",
+          "host": ["{{baseUrl}}"],
+          "path": ["videos"]
+        },
+        "description": "Upload a video and kick off the dubbing pipeline. Non-blocking: returns a job_id immediately. The job_id is auto-captured into the `jobId` collection variable."
+      }
+    },
+    {
+      "name": "List jobs",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/videos",
+          "host": ["{{baseUrl}}"],
+          "path": ["videos"]
+        },
+        "description": "List the 10 most recent jobs."
+      }
+    },
+    {
+      "name": "Get status",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/videos/{{jobId}}/status",
+          "host": ["{{baseUrl}}"],
+          "path": ["videos", "{{jobId}}", "status"]
+        },
+        "description": "Poll job status. Statuses: queued, diarizing, transcribing, translating, synthesizing, syncing, packaging, completed, failed, cancelled."
+      }
+    },
+    {
+      "name": "Get transcript",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/videos/{{jobId}}/transcript",
+          "host": ["{{baseUrl}}"],
+          "path": ["videos", "{{jobId}}", "transcript"]
+        },
+        "description": "Per-segment transcript with speaker labels, timings, source text and translated text."
+      }
+    },
+    {
+      "name": "Download video",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/videos/{{jobId}}/download",
+          "host": ["{{baseUrl}}"],
+          "path": ["videos", "{{jobId}}", "download"]
+        },
+        "description": "Download the dubbed MP4 (only available once status = completed)."
+      }
+    },
+    {
+      "name": "Download subtitles",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/videos/{{jobId}}/subtitles",
+          "host": ["{{baseUrl}}"],
+          "path": ["videos", "{{jobId}}", "subtitles"]
+        },
+        "description": "Download the translated SRT subtitles."
+      }
+    },
+    {
+      "name": "Retry job",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Retry accepted (200)', () => pm.expect(pm.response.code).to.equal(200));",
+              "pm.test('Job back to queued', () => pm.expect(pm.response.json().status).to.equal('queued'));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": []
+        },
+        "url": {
+          "raw": "{{baseUrl}}/videos/{{jobId}}/retry",
+          "host": ["{{baseUrl}}"],
+          "path": ["videos", "{{jobId}}", "retry"]
+        },
+        "description": "Re-run a failed or cancelled job."
+      }
+    },
+    {
+      "name": "Cancel job",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Cancel accepted (200)', () => pm.expect(pm.response.code).to.equal(200));",
+              "pm.test('Job cancelled', () => pm.expect(pm.response.json().status).to.equal('cancelled'));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": []
+        },
+        "url": {
+          "raw": "{{baseUrl}}/videos/{{jobId}}/cancel",
+          "host": ["{{baseUrl}}"],
+          "path": ["videos", "{{jobId}}", "cancel"]
+        },
+        "description": "Cancel a running (non-completed) job."
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "apiKey",
+      "value": "",
+      "type": "string",
+      "description": "Optional: set this if API_KEY_AUTH_ENABLED=true. Sent as the X-API-Key header on all requests."
+    },
+    {
+      "key": "jobId",
+      "value": "",
+      "type": "string",
+      "description": "Set automatically by the Upload video request. Override manually to inspect a specific job."
+    }
+  ]
+}
