@@ -80,6 +80,7 @@ class SynthesizedSegment:
     end_ms: int
     audio_path: str          # path/key of the synthesized audio chunk in storage
     target_language: str
+    voice_id: str | None = None   # TTS voice actually used for this segment
 
 
 @dataclass

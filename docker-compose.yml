@@ -19,24 +19,62 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   worker:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    command: celery -A workers.celery_app worker --loglevel=info --concurrency=4
+    command: celery -A workers.celery_app worker --loglevel=info
     env_file: .env
     environment:
       CONFIG_FILE: config/default.yaml
     volumes:
       - .:/app
       - dubbing-data:/data/storage
+      - hf-cache:/root/.cache/huggingface
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  beat:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    command: celery -A workers.celery_app beat --loglevel=info
+    env_file: .env
+    environment:
+      CONFIG_FILE: config/default.yaml
+    volumes:
+      - .:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  # One-shot: apply DB migrations before the API/worker start.
+  migrate:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    command: alembic upgrade head
+    env_file: .env
+    environment:
+      CONFIG_FILE: config/default.yaml
+    volumes:
+      - .:/app
+    depends_on:
+      postgres:
         condition: service_healthy
 
   redis:
@@ -86,3 +124,4 @@ volumes:
   postgres-data:
   minio-data:
   dubbing-data:
+  hf-cache:

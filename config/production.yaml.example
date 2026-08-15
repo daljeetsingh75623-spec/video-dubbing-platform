@@ -5,6 +5,8 @@ storage_backend: s3
 s3_bucket: video-dubbing-prod
 
 max_upload_size_mb: 1000
+max_video_duration_seconds: 3600
+allowed_video_formats: [mp4, mov]
 max_concurrent_uploads: 50
 max_concurrent_processing_jobs: 50
 processing_timeout_seconds: 3600

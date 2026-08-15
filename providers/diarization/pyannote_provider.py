@@ -21,6 +21,10 @@ class PyannoteDiarizationProvider(DiarizationProvider):
 
     def __init__(self, device: str = "cpu"):
         settings = get_settings()
+        self._min_speakers = settings.diarization_min_speakers
+        self._max_speakers = settings.diarization_max_speakers
+        if self._min_speakers and self._max_speakers and self._min_speakers > self._max_speakers:
+            raise ValueError("diarization_min_speakers cannot exceed diarization_max_speakers")
         pipeline = Pipeline.from_pretrained(
             "pyannote/speaker-diarization-3.1",
             token=settings.huggingface_token,
@@ -37,7 +41,13 @@ class PyannoteDiarizationProvider(DiarizationProvider):
         local_path = f"/tmp/{audio_path.replace('/', '_')}"
         await storage.download(audio_path, local_path)
 
-        annotation: Any = await asyncio.to_thread(self._pipeline, local_path)
+        kwargs = {}
+        if self._min_speakers is not None:
+            kwargs["min_speakers"] = self._min_speakers
+        if self._max_speakers is not None:
+            kwargs["max_speakers"] = self._max_speakers
+
+        annotation: Any = await asyncio.to_thread(self._pipeline, local_path, **kwargs)
 
         # pyannote assigns labels like "SPEAKER_00" already, but per-file —
         # remap through a stable, deterministic ordering (first-appearance)

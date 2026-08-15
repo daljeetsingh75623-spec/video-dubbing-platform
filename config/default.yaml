@@ -3,6 +3,7 @@ log_level: INFO
 
 storage_backend: local
 storage_local_path: /data/storage
+work_dir: /tmp
 s3_bucket: video-dubbing
 s3_region: us-east-1
 
@@ -14,14 +15,19 @@ max_concurrent_processing_jobs: 5
 processing_timeout_seconds: 1800
 retry_count: 3
 queue_max_length: 1000
+stale_job_timeout_seconds: 3600
+stale_job_recovery_interval_seconds: 60
 
 stt_provider: stub
 translation_provider: stub
 tts_provider: stub
 diarization_provider: stub
+# diarization_min_speakers: 2
+# diarization_max_speakers: 4
 
 provider_timeout_seconds: 60
 provider_retry_count: 2
+translation_batch_size: 25
 
 api_key_auth_enabled: false
 rate_limit_per_minute: 60

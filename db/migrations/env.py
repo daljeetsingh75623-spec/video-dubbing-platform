@@ -7,6 +7,7 @@ from sqlalchemy import engine_from_config, pool
 
 from config.settings import get_settings
 from db.models import Base
+from db.urls import sync_database_url
 
 config = context.config
 if config.config_file_name is not None:
@@ -16,8 +17,7 @@ target_metadata = Base.metadata
 
 
 def _sync_db_url() -> str:
-    url = get_settings().database_url
-    return url.replace("+asyncpg", "+psycopg2")
+    return sync_database_url(get_settings().database_url)
 
 
 def run_migrations_offline() -> None:

@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import Session, sessionmaker
 
 from config.settings import get_settings
+from db.urls import sync_database_url
 
 settings = get_settings()
 
@@ -19,7 +20,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
-_sync_url = settings.database_url.replace("+asyncpg", "+psycopg2")
+_sync_url = sync_database_url(settings.database_url)
 sync_engine = create_engine(_sync_url, pool_pre_ping=True)
 SyncSessionLocal = sessionmaker(bind=sync_engine, expire_on_commit=False)
 

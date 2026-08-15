@@ -1,11 +1,28 @@
 from __future__ import annotations
 
+import re
+
 from fastapi import HTTPException, UploadFile
+
+from core.av_sync import get_video_duration_ms
 
 try:
     import magic
 except ImportError:  # libmagic is not available (e.g. on Windows)
     magic = None
+
+# ISO 639-1/2 code, optionally with an ISO 3166 region subtag (e.g. "zh-CN").
+_LANG_CODE_RE = re.compile(r"^[a-zA-Z]{2,3}(?:-[A-Za-z]{2,4})?$")
+
+
+def validate_target_language(code: str) -> str:
+    c = (code or "").strip()
+    if not _LANG_CODE_RE.match(c):
+        raise HTTPException(
+            status_code=400,
+            detail="target_language must be a language code like 'es', 'fr' or 'zh-CN'.",
+        )
+    return c
 
 _ALLOWED_MIME_TYPES = {
     "video/mp4",
@@ -43,6 +60,25 @@ def validate_mime_sniff(header_bytes: bytes) -> None:
         raise HTTPException(
             status_code=400,
             detail=f"File content does not look like a video (detected: {detected}).",
+        )
+
+
+async def validate_duration(path: str, max_duration_seconds: int) -> None:
+    """ffprobe the file and reject videos longer than the configured limit."""
+    try:
+        duration_ms = await get_video_duration_ms(path)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="Could not read video metadata — file is corrupted or not a valid video.",
+        ) from exc
+    if duration_ms / 1000 > max_duration_seconds:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Video duration {duration_ms / 1000:.1f}s exceeds the "
+                f"{max_duration_seconds}s limit."
+            ),
         )
 
 

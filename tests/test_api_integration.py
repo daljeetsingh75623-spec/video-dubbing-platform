@@ -40,6 +40,36 @@ async def test_retry_rejects_non_failed_job(client):
 
 
 @pytest.mark.asyncio
+async def test_upload_rejects_video_over_duration_limit(client, monkeypatch):
+    # Simulate an ffprobe that reports a 10min+ video so validate_duration
+    # rejects it with 422 before any storage write / job creation happens.
+    async def _over_limit(path):
+        return 700_000
+
+    monkeypatch.setattr("api.validation.get_video_duration_ms", _over_limit)
+
+    files = {"file": ("clip.mp4", io.BytesIO(b"not a real video"), "video/mp4")}
+    data = {"target_language": "es"}
+    resp = await client.post("/videos", files=files, data=data)
+    assert resp.status_code == 422
+    assert "exceeds" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_upload_rejects_corrupt_video(client, monkeypatch):
+    async def _raise(path):
+        raise RuntimeError("ffprobe failed")
+
+    monkeypatch.setattr("api.validation.get_video_duration_ms", _raise)
+
+    files = {"file": ("clip.mp4", io.BytesIO(b"not a real video"), "video/mp4")}
+    data = {"target_language": "es"}
+    resp = await client.post("/videos", files=files, data=data)
+    assert resp.status_code == 400
+    assert "not a valid video" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
 async def test_health_check(client):
     resp = await client.get("/health")
     assert resp.status_code == 200

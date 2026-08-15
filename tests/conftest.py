@@ -5,12 +5,29 @@ so API tests don't require a live Redis/worker.
 """
 from __future__ import annotations
 
+import os
+import tempfile
+
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
 from db.models import Base
+
+# Don't initialize OpenTelemetry tracing during tests (settings are read once
+# and cached on first import of api.main, so this must happen before it).
+os.environ.setdefault("OTEL_ENABLED", "false")
+# Keep the per-route rate limiter from tripping during the whole test suite
+# (the limiter key is the remote address, so every request in the run shares
+# one bucket).
+os.environ.setdefault("RATE_LIMIT_PER_MINUTE", "100000")
+# Give the storage backend a real scratch dir (the stub TTS now uploads its
+# generated WAV chunks through storage, exactly like a real provider).
+os.environ.setdefault("STORAGE_LOCAL_PATH", tempfile.mkdtemp(prefix="vdp_test_storage_"))
+# Point the Celery pipeline's DB (sync engine) at a file-backed SQLite DB.
+_test_db = os.path.join(tempfile.mkdtemp(prefix="vdp_test_db_"), "test.db")
+os.environ.setdefault("DATABASE_URL", f"sqlite+aiosqlite:///{_test_db.replace(os.sep, '/')}")
 
 
 @pytest_asyncio.fixture
