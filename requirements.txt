@@ -28,12 +28,14 @@ setuptools<81
 pytest==8.3.3
 pytest-asyncio==0.24.0
 httpx==0.28.1
-pyannote.audio==3.3.2
-torch==2.4.1
-torchaudio==2.4.1
+pyannote.audio==4.0.7
+torch==2.13.0
+torchaudio==2.11.0
+torchcodec==0.16.0
 google-genai==2.18.1
 faster-whisper==1.2.1
-edge-tts==6.1.19
+# 7.x reworks the Sec-MS-GEC token generation; 6.x gets HTTP 403 from
+# speech.platform.bing.com since Microsoft tightened it.
+edge-tts==7.2.8
 gtts==2.5.4
-coqui-tts==0.24.0
 aiosqlite==0.20.0

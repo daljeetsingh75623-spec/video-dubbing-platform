@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 from typing import Any
 
 from pyannote.audio import Pipeline
@@ -9,6 +10,19 @@ from config.settings import get_settings
 from core.domain import DiarizationResult, SpeakerSegment
 from providers.diarization.base import DiarizationProvider
 from storage.factory import get_storage_backend
+
+
+def _from_pretrained_kwargs(token: str | None) -> dict[str, Any]:
+    """Pass the HF token through the kwarg name this pyannote version uses.
+
+    pyannote.audio 3.x names it ``use_auth_token``; 4.x renamed it to
+    ``token``. Sniff the signature so the same code runs on either.
+    """
+    if not token:
+        return {}
+    params = inspect.signature(Pipeline.from_pretrained).parameters
+    key = "token" if "token" in params else "use_auth_token"
+    return {key: token}
 
 
 class PyannoteDiarizationProvider(DiarizationProvider):
@@ -27,7 +41,7 @@ class PyannoteDiarizationProvider(DiarizationProvider):
             raise ValueError("diarization_min_speakers cannot exceed diarization_max_speakers")
         pipeline = Pipeline.from_pretrained(
             "pyannote/speaker-diarization-3.1",
-            token=settings.huggingface_token,
+            **_from_pretrained_kwargs(settings.huggingface_token),
         )
         if pipeline is None:
             raise RuntimeError("Failed to load pyannote speaker-diarization pipeline")
@@ -47,7 +61,10 @@ class PyannoteDiarizationProvider(DiarizationProvider):
         if self._max_speakers is not None:
             kwargs["max_speakers"] = self._max_speakers
 
-        annotation: Any = await asyncio.to_thread(self._pipeline, local_path, **kwargs)
+        # pyannote.audio 4.x returns a DiarizeOutput dataclass; the speaker
+        # diarization Annotation is on the .speaker_diarization field.
+        output: Any = await asyncio.to_thread(self._pipeline, local_path, **kwargs)
+        annotation = output.speaker_diarization
 
         # pyannote assigns labels like "SPEAKER_00" already, but per-file —
         # remap through a stable, deterministic ordering (first-appearance)
