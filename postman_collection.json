@@ -47,7 +47,8 @@
           "script": {
             "exec": [
               "const json = pm.response.json();",
-              "if (json.job_id) { pm.collectionVariables.set('jobId', json.job_id); console.log('jobId -> ' + json.job_id); }",
+              "console.log('Upload response:', JSON.stringify(json, null, 2));",
+              "if (json.job_id) { pm.collectionVariables.set('jobId', json.job_id); console.log('jobId SET -> ' + json.job_id); } else { console.log('job_id NOT FOUND in response'); }",
               "",
               "pm.test('Job created (201)', () => pm.expect(pm.response.code).to.equal(201));",
               "pm.test('Response has job_id', () => pm.expect(json).to.have.property('job_id'));",
